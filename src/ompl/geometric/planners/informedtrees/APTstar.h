@@ -361,10 +361,10 @@ namespace ompl
             unsigned int batchSize_{199u};
 
             /** \brief Whether to use a adaptive batch size RGG. If false, APT* uses an static batchsize. */
-            bool useAdaptiveBatchSize_{false};
+            bool useAdaptiveBatchSize_{true};
 
             /** \brief Whether to use a upper confidence bound RGG. If false, APT* uses an static batchsize. */
-            bool useUCBCharge_{false};
+            bool useUCBCharge_{true};
 
             /** \brief Max area of the sampled ellipse */
             double S_max_initial_{1.0};

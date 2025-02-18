@@ -122,7 +122,7 @@ namespace ompl
 
                 std::vector<double> getValueofforceDirection();
 
-                bool useUCBCharge_{false};
+                bool useUCBCharge_{true};
 
                 unsigned int batchsize_;
 
