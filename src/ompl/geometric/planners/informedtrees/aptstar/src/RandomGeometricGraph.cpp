@@ -374,47 +374,40 @@ namespace ompl
             }
 
             bool RandomGeometricGraph::isInEllipticalRange(const std::shared_ptr<State> &state,
-                                                           const std::weak_ptr<State> &neighbor,
-                                                           std::vector<double> &forceDirection, double Radius) const
+                                                           const std::shared_ptr<State> &ellipsecenter,
+                                                           std::vector<double> &Vector, 
+                                                           std::size_t dimension_) const
             {
                 if (!state)
                 {
                     throw std::invalid_argument("Provided state or neighbor is null");
                 }
-
-                // 找出forceDirection中的最大值
-                double maxForceDirection = *std::max_element(forceDirection.begin(), forceDirection.end());
-
-                if (!state)
-                {
-                    throw std::invalid_argument("Provided state1 is null");
-                }
-                auto state2_shared = neighbor.lock();
-
-                if (!state2_shared)
-                {
-                    throw std::invalid_argument("Provided state2 is null");
+                std::vector<double> delta(dimension_);
+                auto cstate = state->raw()->as<ompl::base::RealVectorStateSpace::StateType>();
+                auto cellipsecenter = ellipsecenter->raw()->as<ompl::base::RealVectorStateSpace::StateType>();
+                // Step 1: calculate (x - c)
+                for (size_t i = 0; i < dimension_; ++i) {
+                    delta[i] = cstate->values[i] - cellipsecenter->values[i];
                 }
 
-                auto cstate1 = state->raw()->as<ompl::base::RealVectorStateSpace::StateType>();
-                auto cstate2 = state2_shared->raw()->as<ompl::base::RealVectorStateSpace::StateType>();
-
-                if (!cstate1 || !cstate2)
-                {
-                    throw std::runtime_error("rstate pointer is null");
-                }
-                double theta1 = 0., theta2 = 0., dx = 0., dy = 0., dist = 0.;
-
-                for (unsigned int i = 0; i < dimension_; ++i)
-                {
-                    theta1 += cstate1->values[i];
-                    theta2 += cstate2->values[i];
-                    dx += cos(theta1) - cos(theta2);
-                    dy += sin(theta1) - sin(theta2);
-                    dist += sqrt((dx * dx + dy * dy) * (forceDirection[i] * forceDirection[i]));
+                // Step 2: calculate Q^T * (x - c)
+                auto Q = buildOrthogonalMatrix(Vector);
+                std::vector<double> rotated(dimension_, 0.0);
+                for (size_t i = 0; i < dimension_; ++i) {
+                    for (size_t j = 0; j < dimension_; ++j) {
+                        rotated[i] += Q[j][i] * delta[j]; 
+                    }
                 }
 
-                return dist <= Radius / maxForceDirection;
+                // Step 3: calculate sum(rotated[i]^2 / d[i]^2)
+                double value = 0.0;
+                auto D = buildAxisLengths(Vector,1.0);
+                for (size_t i = 0; i < dimension_; ++i) {
+                    value += (rotated[i] * rotated[i]) / (D[i] * D[i]);
+                }
+
+                // Step 4: Determine whether it is within the ellipsoid
+                return value <= 1.0;
             }
 
             double RandomGeometricGraph::getRadius() const
@@ -1059,7 +1052,7 @@ namespace ompl
                     std::vector<std::shared_ptr<State>> neighbors;
                     std::vector<std::shared_ptr<State>> Knearestneighbors;
 
-                    if (!useKNearest_)  //(useKNearest_)
+                    if (useKNearest_)  //(useKNearest_)
                     {
                         samples_.nearestK(state, numNeighbors_, neighbors);
                         // std::cout << "-  samples_.nearestK:  " << numNeighbors_ << std::endl;
@@ -1100,19 +1093,17 @@ namespace ompl
 
                             if (!Allneighbors.empty())
                             {
-                                TotalForce totalforce(state, Allneighbors, dimension_);
-
+                                TotalForce totalforce(state, Allneighbors, dimension_,radius_);
                                 totalforce.setUseUCBCharge(useUCBCharge_);
 
                                 totalforce.setbatchsize(batchsize_);
-
                                 totalforce.totalForceVecwithStart_ = std::vector<double>(dimension_, 1.0);
                                 //    std::cout << "-----------numNeighbors_:  " << numNeighbors_ << std::endl;
 
                                 totalForceDirection = totalforce.getValueofforceDirection();
 
-                                circle_neighbors = totalforce.NearestEllipseticKSamples(
-                                    state, totalForceDirection, Allneighbors, numNeighbors_, dimension_);
+                                circle_neighbors = totalforce.RNearestEllipseticSamples(
+                                    state, totalForceDirection, Allneighbors, dimension_);
 
                                 totalforce.totalForce(state, circle_neighbors);
 
@@ -1122,8 +1113,8 @@ namespace ompl
 
                                 totalForceDirection2 = totalforce.getValueofforceDirection();
 
-                                temp_neighbors = totalforce.NearestEllipseticKSamples(
-                                    state, totalForceDirection2, Allneighbors, numNeighbors_, dimension_);
+                                temp_neighbors = totalforce.RNearestEllipseticSamples(
+                                    state, totalForceDirection2, Allneighbors, dimension_);
 
                                 totalforce.totalForce(state, temp_neighbors);
                                 totalforce.totalForcewithStart(state, startState, goalState, iterateForwardSearch);
@@ -1146,19 +1137,8 @@ namespace ompl
                                         iterations++;
 
                                         totalForceDirection3 = totalforce.getValueofforceDirection();
-                                        temp_neighbors = totalforce.NearestEllipseticKSamples(
-                                            state, totalForceDirection3, Allneighbors, numNeighbors_, dimension_);
-                                        //     // If the current element is not found in neighborsKnearest, remove it
-                                        //     if (std::find(Knearestneighbors.begin(), Knearestneighbors.end(), *it) ==
-                                        //     Knearestneighbors.end()) {
-                                        //         it = temp_neighbors.erase(it);  // Remove the element and update the
-                                        //         iterator
-                                        //     } else {
-                                        //         ++it;  // If found, continue to the next element
-                                        //     }
-                                        // }
-                                        // std::cout << "compared before fliter :" << numNeighbors_ << std::endl;
-
+                                        temp_neighbors = totalforce.RNearestEllipseticSamples(
+                                            state, totalForceDirection3, Allneighbors, dimension_);
                                         totalforce.totalForce(state, temp_neighbors);
                                         totalforce.totalForcewithStart(state, startState, goalState,
                                                                        iterateForwardSearch);
@@ -1167,8 +1147,8 @@ namespace ompl
 
                                         ratio = totalforce.getRatioofValidInvalidPoints(temp_neighbors);
 
-                                        temp_neighbors = totalforce.NearestEllipseticKSamples(
-                                            state, totalForceDirection3, Allneighbors, increasingNeighbors, dimension_);
+                                        temp_neighbors = totalforce.RNearestEllipseticSamples(
+                                            state, totalForceDirection3, Allneighbors, dimension_);
                                     }
                                     bool removecircleSet = true;
 
@@ -1512,6 +1492,78 @@ namespace ompl
                                     (std::log(static_cast<double>(numInformedSamples)) / numInformedSamples),
                                 1.0 / dimension_);
             }
+
+
+            // Normalized vector
+            std::vector<double> RandomGeometricGraph::normalize(const std::vector<double>& v) const
+            {
+                double norm = 0.0;
+                for (double val : v) {
+                    norm += val * val;
+                }
+                norm = std::sqrt(norm);
+
+                std::vector<double> result(v.size());
+                for (size_t i = 0; i < v.size(); ++i) {
+                    result[i] = v[i] / norm;
+                }
+                return result;
+            }                      
+
+            // Construct an orthogonal matrix Q
+            std::vector<std::vector<double>> RandomGeometricGraph::buildOrthogonalMatrix(const std::vector<double>& force) const
+            {
+                size_t dim = force.size();
+                std::vector<std::vector<double>> Q(dim, std::vector<double>(dim, 0.0));
+
+                // Step 1: Normalized force direction
+                std::vector<double> u1 = normalize(force);
+                for (size_t i = 0; i < dim; ++i) {
+                    Q[i][0] = u1[i];
+                }
+
+                // Step 2: Randomly generate remaining orthogonal vectors
+                for (size_t k = 1; k < dim; ++k) {
+                    std::vector<double> v(dim, 0.0);
+                    v[k] = 1.0; 
+
+                    // Orthogonalization
+                    double dot = 0.0;
+                    for (size_t i = 0; i < dim; ++i) {
+                        dot += v[i] * Q[i][0];
+                    }
+                    for (size_t i = 0; i < dim; ++i) {
+                        v[i] -= dot * Q[i][0];
+                    }
+
+                    // Normalization
+                    v = normalize(v);
+
+                    for (size_t i = 0; i < dim; ++i) {
+                        Q[i][k] = v[i];
+                    }
+                }
+
+                return Q;
+            }
+
+            // Construct semi-axis length
+            std::vector<double> RandomGeometricGraph::buildAxisLengths(const std::vector<double>& force, double k) const
+            {
+                size_t dim = force.size();
+                std::vector<double> D(dim, radius_);
+
+                double force_norm = 0.0;
+                for (double val : force) {
+                    force_norm += val * val;
+                }
+                force_norm = std::sqrt(force_norm);
+
+                // Along the direction of force, stretch
+                D[0] = radius_ * (1.0 + k * force_norm);
+                return D;
+            }
+   
 
         }  // namespace aptstar
 

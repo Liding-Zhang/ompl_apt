@@ -1258,24 +1258,24 @@ namespace ompl
                 {
                     OMPL_INFORM("%s (%u iterations): Found an exact solution of cost %.4f.", name_.c_str(), iteration_,
                                 solutionCost_.value());
-                    const char* Afilename_cost_fdit = "/tmp/result_cost_fdit.csv";
+                    const char* Afilename_cost_apt = "/tmp/result_cost_apt.csv";
                     struct stat sb4;
-                    std::ofstream myFile_cost_fdit;
+                    std::ofstream myFile_cost_apt;
 
                       // Check if file for COST was created
 
-                    if (stat(Afilename_cost_fdit, &sb4) == 0) {
+                    if (stat(Afilename_cost_apt, &sb4) == 0) {
                         OMPL_INFORM("File exists and load new COST - APT*");
-                        myFile_cost_fdit.open("/tmp/result_cost_fdit.csv", std::ios::out | std::ios::app | std::ios::binary); 
-                        myFile_cost_fdit << solutionCost_.value() << ",";
+                        myFile_cost_apt.open("/tmp/result_cost_apt.csv", std::ios::out | std::ios::app | std::ios::binary); 
+                        myFile_cost_apt << solutionCost_.value() << ",";
                     }
                     else {
                         OMPL_INFORM("File does not exisit ->create new file - APT*");
-                        myFile_cost_fdit.open("/tmp/result_cost_fdit.csv");
-                        myFile_cost_fdit << solutionCost_.value() << ",";
+                        myFile_cost_apt.open("/tmp/result_cost_apt.csv");
+                        myFile_cost_apt << solutionCost_.value() << ",";
                     }
 
-                    myFile_cost_fdit.close();
+                    myFile_cost_apt.close();
                     break;
                 }
                 case ompl::base::PlannerStatus::StatusType::APPROXIMATE_SOLUTION:

@@ -18,7 +18,7 @@ namespace ompl
     {
         namespace aptstar
         {
-            // Forward declare the DIT* state class.
+            // Forward declare the APT* state class.
             class State;
 
             /** \brief The vertex class for both the forward and reverse search. */
@@ -27,10 +27,11 @@ namespace ompl
             public:
                 /** \brief Constructs the vertex, which must be associated with a state. */
                 TotalForce(const std::shared_ptr<State> &state, std::vector<std::shared_ptr<State>> &Allneigbors,
-                           size_t dimension_);
+                           size_t dimension_, const double &radius);
 
                 /** \brief Destructs this vertex. */
                 ~TotalForce();
+                
                 /** \brief Set the state */
                 void setState(const std::shared_ptr<State> &state);
 
@@ -44,27 +45,33 @@ namespace ompl
                 std::vector<double> getVector(const std::shared_ptr<State> state1,
                                               const std::shared_ptr<State> state2) const;
 
+                /** \brief Returns distance between 2 states */
                 double distance(const std::shared_ptr<State> state1, const std::shared_ptr<State> state2) const;
 
-                std::vector<std::shared_ptr<State>> NearestKSamples(const std::shared_ptr<State> state,
-                                                                    std::vector<std::shared_ptr<State>> Samples, int k);
+                /** \brief Returns all state points within the stretched ellipse */
+                std::vector<std::shared_ptr<State>>RNearestEllipseticSamples(const std::shared_ptr<State> state, std::vector<double> &ForceDirection,
+                                          std::vector<std::shared_ptr<State>> &Samples,std::size_t dimension_);
 
-                std::vector<std::shared_ptr<State>>
-                NearestEllipseticKSamples(const std::shared_ptr<State> state, std::vector<double> &ForceDirection,
-                                          std::vector<std::shared_ptr<State>> &Samples, int k, std::size_t dimension_);
+                /** \brief Determine whether the point is inside the stretched ellipse */
+                bool isinStretchedEllipse(const std::shared_ptr<State> &state1, const std::shared_ptr<State> &state2, std::vector<double> &totalForceVec, std::size_t dimension_);
 
-                double calculateEllipticalDistance(const std::shared_ptr<State> &state1,
-                                                   const std::shared_ptr<State> &state2,
-                                                   std::vector<double> &totalForceVec, std::size_t dimension_);
+                /** \brief Normalized vector */
+                std::vector<double> normalize(const std::vector<double>& v);
 
+                /** \brief Construct an orthogonal matrix Q */
+                std::vector<std::vector<double>> buildOrthogonalMatrix(const std::vector<double>& force);
+
+                /** \brief Construct semi-axis length */
+                std::vector<double> buildAxisLengths(const std::vector<double>& force, double k);
+
+                /** \brief Returns the Coulomb force between two points */
                 std::vector<double> force(const std::shared_ptr<State> &state1, const std::shared_ptr<State> &state2);
 
-                void totalForce(const std::shared_ptr<State> &currentState,
-                                const std::vector<std::shared_ptr<State>> &Samples);
+                /** \brief Returns the Coulomb force acting on the current state */
+                void totalForce(const std::shared_ptr<State> &currentState, const std::vector<std::shared_ptr<State>> &Samples);
 
-                void totalForcewithStart(const std::shared_ptr<State> &currentState,
-                                         const std::shared_ptr<State> &startstate,
-                                         const std::shared_ptr<State> &goalstate, bool iterateForwardSearch);
+                /** \brief Returns the Coulomb force acting on the current state */
+                void totalForcewithStart(const std::shared_ptr<State> &currentState, const std::shared_ptr<State> &startstate, const std::shared_ptr<State> &goalstate, bool iterateForwardSearch);
 
                 /** \brief Return the norm of two states */
                 double getNorm(const std::vector<double> &v) const;
@@ -78,21 +85,10 @@ namespace ompl
                 std::vector<double> normalize(const std::vector<double> &v) const;
 
                 /** \brief Check whether the std::vector<double> within two guided direction. */
-                bool isVectorBetween(const std::vector<double> &targetVector, const std::vector<double> &goalVector,
-                                     const std::shared_ptr<State> &sourceState,
-                                     const std::shared_ptr<State> &neighborState) const;
+                bool isVectorBetween(const std::vector<double> &targetVector, const std::vector<double> &goalVector, const std::shared_ptr<State> &sourceState, const std::shared_ptr<State> &neighborState) const;
 
                 /** \brief Check whether the std::vector<double> meet the required angle. */
-                bool checkAngle(const std::vector<double> &targetVector, const std::shared_ptr<State> &sourceState,
-                                const std::shared_ptr<State> &neighborState) const;
-
-                /** \brief filter the neighbors vector using direction info*/
-                void filterNeighbors(const std::shared_ptr<State> &lastState, const std::shared_ptr<State> &state,
-                                     std::vector<std::shared_ptr<State>> &states,
-                                     const std::shared_ptr<State> &goalState);
-
-                /** \brief calculate direction Cost of current direction*/
-
+                bool checkAngle(const std::vector<double> &targetVector, const std::shared_ptr<State> &sourceState, const std::shared_ptr<State> &neighborState) const;
 
                 /** \brief Sets the charge. */
                 void setUseUCBCharge(bool useUCBCharge);
@@ -100,20 +96,29 @@ namespace ompl
                 /** \brief Sets the charge. */
                 void setbatchsize(unsigned int numsamples);
 
+                /** \brief filter the neighbors vector using direction info*/
+                void filterNeighbors(const std::shared_ptr<State> &lastState, const std::shared_ptr<State> &state, std::vector<std::shared_ptr<State>> &states, const std::shared_ptr<State> &goalState);
+
                 /** \brief Clear the neighbors vector of current target */
                 void clearNeighbors();
 
+                /** \brief Returns the proportion of invalid points */
                 double getRatioofValidInvalidPoints(std::vector<std::shared_ptr<State>> states);
 
+                /** \brief Set total force value */
+                void settotalForcewithStartValue(std::vector<double> &totalForceVecWithStart);
+
+                /** \brief Space dimension */
                 std::size_t dimension_;
 
+                /** \brief Total magnitude */
                 mutable double totalMagnitude_;
 
+                /** \brief Total force vector */
                 mutable std::vector<double> totalForceVec_;
 
+                /** \brief Total magnitude with start */
                 mutable double totalMagnitudewithStart_;
-
-                void settotalForcewithStartValue(std::vector<double> &totalForceVecWithStart);
 
                 mutable std::vector<double> totalForceVecwithStart_;
 
@@ -222,6 +227,9 @@ namespace ompl
 
                 /** \brief state lock */
                 std::mutex state_mutex_;
+
+                /** \brief The connection radius of the RGG. */
+                double radius_{std::numeric_limits<double>::infinity()};
             };
 
         }  // namespace aptstar

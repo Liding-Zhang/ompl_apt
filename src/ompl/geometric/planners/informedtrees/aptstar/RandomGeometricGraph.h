@@ -198,9 +198,19 @@ namespace ompl
                 /** \brief Returns whether a goal state is available. */
                 bool hasGoalState() const;
 
-                bool isInEllipticalRange(const std::shared_ptr<State> &state, const std::weak_ptr<State> &neigbor,
-                                         std::vector<double> &forceDirection, double Radius) const;
+                /** \brief Determine whether it is inside the stretched ellipse. */
+                bool isInEllipticalRange(const std::shared_ptr<State> &state, const std::shared_ptr<State> &ellipsecenter, std::vector<double> &Vector, std::size_t dimension_) const;
 
+                /** \brief Normalized vector */
+                std::vector<double> normalize(const std::vector<double>& v) const;
+
+                /** \brief Construct an orthogonal matrix Q */
+                std::vector<std::vector<double>> buildOrthogonalMatrix(const std::vector<double>& force) const;
+
+                /** \brief Construct semi-axis length */
+                std::vector<double> buildAxisLengths(const std::vector<double>& force, double k) const;
+
+                /** \brief Returns the RNN radius r */
                 double getRadius() const;
 
                 /** \brief Returns whether the given state is a start state. */
@@ -231,9 +241,13 @@ namespace ompl
                 /** \brief Returns the inadmissible effort to come. */
                 unsigned int inadmissibleEffortToCome(const std::shared_ptr<State> &state) const;
 
+                /** \brief Set the direction of the force. */
                 void setForceDirection(std::vector<double> &totalforceDirection) const;
 
+                /** \brief Direction of force. */
                 mutable std::vector<double> totalforceDirection_;
+
+                /** \brief All sampling points. */
                 std::vector<State> allSamples_{};
 
                
@@ -242,6 +256,7 @@ namespace ompl
                 /** \brief Returns a sample either from the buffer or a newly generated one. */
                 std::shared_ptr<State> getNewSample(const ompl::base::PlannerTerminationCondition &terminationCondition);
 
+                /** \brief Returns all valid and invalid points. */
                 std::shared_ptr<State> getValidandInValidNewSample();
 
                 /** \brief Returns the number of states in the informed set. */
@@ -380,6 +395,7 @@ namespace ompl
                 /** \brief The number of valid samples. */
                 mutable unsigned int numValidSamples_{0u};
 
+                /** \brief The number of invalid samples. */
                 mutable unsigned int numInVaildSamples_{0u};
 
                 /** \brief The number of valid samples. */

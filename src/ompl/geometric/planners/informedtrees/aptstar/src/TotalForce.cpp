@@ -17,8 +17,9 @@ namespace ompl
         {
             // Constructor for TotalForce class
             TotalForce::TotalForce(const std::shared_ptr<State> &state, std::vector<std::shared_ptr<State>> &states,
-                                   size_t dimension)
-              : state_(state), states_(states), dimension_(dimension)
+                                   size_t dimension,
+                                   const double &radius)
+              : state_(state), states_(states), dimension_(dimension),radius_(radius)
             {
             }
 
@@ -141,33 +142,6 @@ namespace ompl
                 }
             };
 
-            // Find nearest K samples to a given state
-            std::vector<std::shared_ptr<State>> TotalForce::NearestKSamples(const std::shared_ptr<State> state,
-                                                                            std::vector<std::shared_ptr<State>> Samples,
-                                                                            int k)
-            {
-                std::priority_queue<std::pair<double, std::shared_ptr<State>>,
-                                    std::vector<std::pair<double, std::shared_ptr<State>>>, Compare>
-                    pq;
-
-                // Iterate through all samples, calculate distance to the given state, and store in priority queue
-                for (const auto &sample : Samples)
-                {
-                    double dist = distance(state, sample);
-                    pq.push({dist, sample});
-                }
-
-                // Extract nearest k samples from the queue
-                std::vector<std::shared_ptr<State>> nearest;
-                for (int i = 0; i < k && !pq.empty(); ++i)
-                {
-                    nearest.push_back(pq.top().second);
-                    pq.pop();
-                }
-
-                return nearest;
-            }
-
             // Calculate force between two states
             std::vector<double> TotalForce::force(const std::shared_ptr<State> &state1,
                                                   const std::shared_ptr<State> &state2)
@@ -176,7 +150,7 @@ namespace ompl
                 std::vector<double> vec = getVector(state1, state2);
                 // Calculate the distance
                 double dist = distance(state1, state2);
-                double magnitude;
+                double magnitude = 1.0 / (dist * dist);
                 double charge = 1.0;
                 if (useUCBCharge_)
                 {
@@ -198,9 +172,10 @@ namespace ompl
 
                     magnitude = charge / (dist * dist);
                 }
-                // Coulomb's Law: F = k * (1 / r^2)
-                magnitude = state2->isAttractive_ ? magnitude : -magnitude;  // Attractive force positive, repulsive negative
-                // std::cout << "magnitude: " << magnitude << std::endl;
+                // Coulomb's Law: F = k * (q / r^2)
+                magnitude =
+                    state2->isAttractive_ ? magnitude : -magnitude;  // Attractive force positive, repulsive negative
+
                 for (size_t i = 0; i < vec.size(); ++i)
                 {
                     vec[i] *= magnitude;
@@ -249,47 +224,26 @@ namespace ompl
                 }
              
             }
-            // Find the nearest k samples in an ellipsoidal space
-            std::vector<std::shared_ptr<State>> TotalForce::NearestEllipseticKSamples(
-                const std::shared_ptr<State> state, std::vector<double> &totalForceVec,
-                std::vector<std::shared_ptr<State>> &Samples, int k, std::size_t dimension_)
-            {
-                // Initialize a priority queue to store samples based on their distance
-                std::priority_queue<std::pair<double, std::shared_ptr<State>>,
-                                    std::vector<std::pair<double, std::shared_ptr<State>>>, Compare>
-                    queue;
 
+            std::vector<std::shared_ptr<State>> TotalForce::RNearestEllipseticSamples(
+                const std::shared_ptr<State> state, std::vector<double> &totalForceVec,
+                std::vector<std::shared_ptr<State>> &Samples, std::size_t dimension_)
+            {
+                std::vector<std::shared_ptr<State>> nearest;
+            
                 // Iterate over all samples
                 for (const auto &sample : Samples)
                 {
                     // Exclude the current state from consideration
                     if (sample != state)
                     {
-                        double dist = calculateEllipticalDistance(state, sample, totalForceVec, dimension_);
                         // Add sample to the queue if it's within a finite distance
-                        if (dist <= INFINITY)
+                        if (isinStretchedEllipse(sample, state, totalForceVec, dimension_))
                         {
-                            queue.push(std::make_pair(dist, sample));
+                            nearest.push_back(sample);
                         }
                     }
                 }
-
-                // Extract the nearest k samples from the queue
-                std::vector<std::shared_ptr<State>> nearest;
-                int positiveCount = 0;  // Count of positive (attractive) samples found
-
-                while (!queue.empty() && positiveCount < k)
-                {
-                    auto currentSample = queue.top().second;
-                    queue.pop();
-                    // Count only attractive samples
-                    if (currentSample->isAttractive_)
-                    {
-                        positiveCount++;
-                    }
-                    nearest.push_back(currentSample);
-                }
-
                 return nearest;
             }
 
@@ -357,42 +311,109 @@ namespace ompl
                 return totalForceVecwithStart_;
             }
 
-            // Function to calculate the elliptical distance between two states
-            double TotalForce::calculateEllipticalDistance(const std::shared_ptr<State> &state1,
-                                                           const std::shared_ptr<State> &state2,
-                                                           std::vector<double> &Vector, std::size_t dimension_)
+            bool TotalForce::isinStretchedEllipse(const std::shared_ptr<State> &state,
+                                                  const std::shared_ptr<State> &ellipsecenter,
+                                                  std::vector<double> &Vector, 
+                                                  std::size_t dimension_)
             {
-                // If the force vector is empty, initialize it as a unit circle
-                if (Vector.empty())
-                {
-                    std::vector<double> circle(dimension_, 1.0);
-                    Vector = circle;
+                std::vector<double> delta(dimension_);
+                auto cstate = state->raw()->as<ompl::base::RealVectorStateSpace::StateType>();
+                auto cellipsecenter = ellipsecenter->raw()->as<ompl::base::RealVectorStateSpace::StateType>();
+                // Step 1: calculate (x - c)
+                for (size_t i = 0; i < dimension_; ++i) {
+                    delta[i] = cstate->values[i] - cellipsecenter->values[i];
                 }
 
-                // Check for null states and throw an exception if found
-                if (!state1 || !state2)
-                {
-                    throw std::invalid_argument("Provided state is null");
+                // Step 2: calculate Q^T * (x - c)
+                auto Q = buildOrthogonalMatrix(Vector);
+                std::vector<double> rotated(dimension_, 0.0);
+                for (size_t i = 0; i < dimension_; ++i) {
+                    for (size_t j = 0; j < dimension_; ++j) {
+                        rotated[i] += Q[j][i] * delta[j]; 
+                    }
                 }
 
-                // Convert states to real vector state space types
-                auto cstate1 = state1->raw()->as<ompl::base::RealVectorStateSpace::StateType>();
-                auto cstate2 = state2->raw()->as<ompl::base::RealVectorStateSpace::StateType>();
-
-                // Calculate the elliptical distance between the two states
-                double theta1 = 0., theta2 = 0., dx = 0., dy = 0., dist = 0.;
-                for (unsigned int i = 0; i < dimension_; ++i)
-                {
-                    theta1 += cstate1->values[i];
-                    theta2 += cstate2->values[i];
-                    dx += cos(theta1) - cos(theta2);
-                    dy += sin(theta1) - sin(theta2);
-                    dist += sqrt((dx * dx + dy * dy) / (Vector[i] * Vector[i]));
+                // Step 3: calculate sum(rotated[i]^2 / d[i]^2)
+                double value = 0.0;
+                auto D = buildAxisLengths(Vector,1);
+                for (size_t i = 0; i < dimension_; ++i) {
+                    value += (rotated[i] * rotated[i]) / (D[i] * D[i]);
                 }
 
-                return dist;
+                // Step 4: Determine whether it is within the ellipsoid
+                return value <= 1.0;
             }
 
+            // Normalized vector
+            std::vector<double> TotalForce::normalize(const std::vector<double>& v) 
+            {
+                double norm = 0.0;
+                for (double val : v) {
+                    norm += val * val;
+                }
+                norm = std::sqrt(norm);
+
+                std::vector<double> result(v.size());
+                for (size_t i = 0; i < v.size(); ++i) {
+                    result[i] = v[i] / norm;
+                }
+                return result;
+            }                      
+
+            // Construct an orthogonal matrix Q
+            std::vector<std::vector<double>> TotalForce::buildOrthogonalMatrix(const std::vector<double>& force) 
+            {
+                size_t dim = force.size();
+                std::vector<std::vector<double>> Q(dim, std::vector<double>(dim, 0.0));
+
+                // Step 1: Normalized force direction
+                std::vector<double> u1 = normalize(force);
+                for (size_t i = 0; i < dim; ++i) {
+                    Q[i][0] = u1[i];
+                }
+
+                // Step 2: Randomly generate remaining orthogonal vectors
+                for (size_t k = 1; k < dim; ++k) {
+                    std::vector<double> v(dim, 0.0);
+                    v[k] = 1.0; 
+
+                    // Orthogonalization
+                    double dot = 0.0;
+                    for (size_t i = 0; i < dim; ++i) {
+                        dot += v[i] * Q[i][0];
+                    }
+                    for (size_t i = 0; i < dim; ++i) {
+                        v[i] -= dot * Q[i][0];
+                    }
+
+                    // Normalization
+                    v = normalize(v);
+
+                    for (size_t i = 0; i < dim; ++i) {
+                        Q[i][k] = v[i];
+                    }
+                }
+
+                return Q;
+            }
+
+            // Construct semi-axis length
+            std::vector<double> TotalForce::buildAxisLengths(const std::vector<double>& force, double k) 
+            {
+                size_t dim = force.size();
+                std::vector<double> D(dim, radius_);
+
+                double force_norm = 0.0;
+                for (double val : force) {
+                    force_norm += val * val;
+                }
+                force_norm = std::sqrt(force_norm);
+
+                // Along the direction of force, stretch
+                D[0] = radius_ * (1.0 + k * force_norm); 
+                return D;
+            }
+   
             // ...
 
             double TotalForce::getNorm(const Vector &vector) const
