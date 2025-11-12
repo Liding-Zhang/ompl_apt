@@ -4,8 +4,7 @@ The Open Motion Planning Library (OMPL)
 Linux / macOS [![Build Status](https://travis-ci.org/ompl/ompl.svg?branch=main)](https://travis-ci.org/ompl/ompl)
 Windows [![Build status](https://ci.appveyor.com/api/projects/status/valuv9sabye1y35n/branch/main?svg=true)](https://ci.appveyor.com/project/mamoll/ompl/branch/main)
 
-Visit the [OMPL installation page](https://ompl.kavrakilab.org/core/installation.html) for
-detailed installation instructions.
+Please visit the [OMPL installation page](https://ompl.kavrakilab.org/core/installation.html) for detailed installation instructions.
 
 OMPL has the following required dependencies:
 
@@ -30,31 +29,31 @@ https://openrave.org/) (released version)
 
 ## Installation of OPENRAVE
 
-install python 2.7
+Install Python 2.7
     
     sudo apt-get update
     sudo apt-get install python2
 
-check default python version
+Check the default Python version
 
     python --version && python3 --version
-Python 2.7 as the default version by creating a symbolic link
+Python 2.7 is the default version by creating a symbolic link
 
     sudo update-alternatives --install /usr/bin/python python /usr/bin/python2 1
     sudo update-alternatives --install /usr/bin/python python /usr/bin/python3 2
 
 
-manually select python version 2.7, you can change it back when OPENRAVE installed
+Manually select Python version 2.7; you can change it back when OPENRAVE is installed
 
     sudo update-alternatives --config python
 
 
-install of OPENRAVE repos
+installation of OPENRAVE repos
 
     cd ~
     git clone https://github.com/crigroup/openrave-installation
     cd openrave-insstallation
-install and build OPERAVE in order
+Install and build OPERAVE in order
 
     sudo ./install-dependencies.sh
     sudo ./install-osg.sh
