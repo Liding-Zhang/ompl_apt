@@ -37,7 +37,7 @@ Install Python 2.7
 Check the default Python version
 
     python --version && python3 --version
-Python 2.7 is the default version by creating a symbolic link
+Python 2.7 is the default version, by creating a symbolic link
 
     sudo update-alternatives --install /usr/bin/python python /usr/bin/python2 1
     sudo update-alternatives --install /usr/bin/python python /usr/bin/python3 2
@@ -70,7 +70,7 @@ following commands
 You can use macro commands to toggle the code you want to compile
 
     cmake -DCMAKE_BUILD_TYPE=Debug -DOMPL_BUILD_TESTS=OFF -DOMPL_BUILD_DEMOS=OFF ..
-    make -j 4 # depends on core you are using
+    make -j 4 # depends on the core you are using
 
 install build into /usr/local folder
 
