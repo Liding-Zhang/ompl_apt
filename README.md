@@ -72,7 +72,7 @@ You can use macro commands to toggle the code you want to compile
     cmake -DCMAKE_BUILD_TYPE=Debug -DOMPL_BUILD_TESTS=OFF -DOMPL_BUILD_DEMOS=OFF ..
     make -j 4 # depends on the core you are using
 
-install build into /usr/local folder
+Install build into /usr/local folder
 
     sudo cmake --install .
 
@@ -81,7 +81,7 @@ switch to pdt folder
     cd ../..
     cd pdt/build
     
-    #### this is for install
+    #### this is for install into usr/local
     cmake -DPDT_OMPL_DIR=/usr/local -DPDT_OPEN_RAVE=ON ..
     
     ### this is for moveit version
